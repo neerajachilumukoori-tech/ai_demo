@@ -1,1 +1,183 @@
 
+Here is the full code for the dance app. Save it as `dance-app.html` and open it in a browser.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dance Floor</title>
+<style>
+  :root {
+    --bg: #1b1030;
+    --panel: #281845;
+    --ink: #fff4e6;
+    --muted: #b9a9d6;
+    --hot: #ff4f81;
+    --gold: #ffc247;
+    --line: #43296b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 28px 16px;
+  }
+  main { width: 100%; max-width: 480px; text-align: center; }
+  h1 { margin: 0 0 4px; font-size: 2rem; letter-spacing: 0.5px; }
+  .sub { margin: 0 0 22px; color: var(--muted); }
+  .stage {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 28px 18px;
+    margin-bottom: 18px;
+  }
+  .orb {
+    width: 120px; height: 120px;
+    margin: 0 auto 18px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, var(--gold), var(--hot));
+    transition: transform 0.08s ease-out;
+  }
+  .orb.beat { transform: scale(1.25); }
+  .move { font-size: 1.9rem; font-weight: 700; min-height: 2.4em; display: flex; align-items: center; justify-content: center; }
+  .count { color: var(--muted); margin-top: 6px; }
+  .count b { color: var(--gold); font-size: 1.4rem; }
+  .row { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  label { color: var(--muted); }
+  select, input[type="range"] { font: inherit; }
+  select {
+    background: var(--panel); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+  }
+  input[type="range"] { accent-color: var(--hot); width: 180px; }
+  button {
+    font: inherit; font-weight: 700; cursor: pointer;
+    border: none; border-radius: 999px; padding: 12px 26px;
+    background: var(--hot); color: #fff;
+  }
+  button.alt { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .orb { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Dance Floor</h1>
+  <p class="sub">Pick a style, set the tempo, and follow the moves.</p>
+
+  <section class="stage" aria-live="polite">
+    <div class="orb" id="orb"></div>
+    <div class="move" id="move">Press Start to begin</div>
+    <div class="count">Beat <b id="beat">–</b> of 8</div>
+  </section>
+
+  <div class="row">
+    <label for="style">Style</label>
+    <select id="style">
+      <option value="hiphop">Hip-hop</option>
+      <option value="salsa">Salsa</option>
+      <option value="bollywood">Bollywood</option>
+      <option value="freestyle">Freestyle</option>
+    </select>
+  </div>
+
+  <div class="row">
+    <label for="bpm">Tempo: <span id="bpmVal">100</span> BPM</label>
+    <input type="range" id="bpm" min="60" max="160" value="100">
+  </div>
+
+  <div class="row">
+    <button id="toggle">Start</button>
+    <button class="alt" id="next">Next move</button>
+  </div>
+</main>
+
+<script>
+  const MOVES = {
+    hiphop: ["Bounce and groove", "Running man", "Two-step slide", "Arm wave", "Shoulder rolls", "Criss-cross", "Reach and pull", "Head nod freeze"],
+    salsa: ["Basic step", "Side basic", "Cross-body lead", "Right turn", "Cumbia step", "Hip sway", "Suzie Q", "Shine: free step"],
+    bollywood: ["Hands to the sky", "Shoulder shrug", "Hook step", "Twirl and clap", "Hand circles", "Jump and spin", "Peacock arms", "Pose and smile"],
+    freestyle: ["Sway side to side", "Spin slowly", "Reach high", "Drop low", "Step-touch", "Shake it out", "Big arm swing", "Find a pose"]
+  };
+
+  const orb = document.getElementById("orb");
+  const moveEl = document.getElementById("move");
+  const beatEl = document.getElementById("beat");
+  const toggleBtn = document.getElementById("toggle");
+  const bpmInput = document.getElementById("bpm");
+  const styleSel = document.getElementById("style");
+
+  let audioCtx = null;
+  let timer = null;
+  let beat = 0;
+  let lastMove = "";
+
+  function click(accent) {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.frequency.value = accent ? 1000 : 600;
+      gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.1);
+    } catch (e) {}
+  }
+
+  function pickMove() {
+    const list = MOVES[styleSel.value];
+    let m;
+    do { m = list[Math.floor(Math.random() * list.length)]; } while (m === lastMove && list.length > 1);
+    lastMove = m;
+    moveEl.textContent = m;
+  }
+
+  function tick() {
+    beat = beat % 8 + 1;
+    beatEl.textContent = beat;
+    if (beat === 1) pickMove();
+    click(beat === 1);
+    orb.classList.add("beat");
+    setTimeout(() => orb.classList.remove("beat"), 90);
+  }
+
+  function start() {
+    beat = 0;
+    tick();
+    timer = setInterval(tick, 60000 / bpmInput.value);
+    toggleBtn.textContent = "Stop";
+  }
+
+  function stop() {
+    clearInterval(timer);
+    timer = null;
+    toggleBtn.textContent = "Start";
+  }
+
+  toggleBtn.onclick = () => (timer ? stop() : start());
+
+  document.getElementById("next").onclick = () => {
+    pickMove();
+    if (timer) beat = 0;
+  };
+
+  bpmInput.oninput = () => {
+    document.getElementById("bpmVal").textContent = bpmInput.value;
+    if (timer) { stop(); start(); }
+  };
+
+  styleSel.onchange = () => { if (timer) pickMove(); };
+</script>
+</body>
+</html>
+```
